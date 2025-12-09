@@ -1,0 +1,15 @@
+[project]
+name = "hn-comment-vector-search"
+version = "0.1.0"
+description = "A vector search system utilizing Hacker News comment embedding data."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "pyarrow>=14.0.0",
+    "python-dotenv>=1.0.0",
+    "qdrant-client>=1.7.0",
+    "sentence-transformers>=2.2.0",
+    "tqdm>=4.66.0",
+]
