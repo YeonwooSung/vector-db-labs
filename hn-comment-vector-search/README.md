@@ -2,6 +2,8 @@
 
 A vector search system utilizing Hacker News comment embedding data.
 
+Download data from [here](https://clickhouse-datasets.s3.amazonaws.com/hackernews-miniLM/hackernews_part_1_of_1.parquet)
+
 ## 🗄️ Database Selection
 
 **Why Qdrant was chosen:**
