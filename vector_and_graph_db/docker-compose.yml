@@ -1,0 +1,64 @@
+volumes:
+  qdrant-data: {}
+  es-data: {}
+  neo4j-data: {}
+
+services:
+  # ==============================================
+  # VectorDB
+  # ==============================================
+  qdrant:
+    image: qdrant/qdrant:v1.13.4
+    container_name: my-qdrant
+    volumes:
+      - qdrant-data:/qdrant/storage
+    ports:
+      - "6333:6333"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 6333 || timeout 3 bash -c '</dev/tcp/localhost/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ==============================================
+  # Search Engine
+  # ==============================================
+  es:
+    image: elasticsearch:8.8.2
+    container_name: my-es
+    ports:
+      - "9200:9200"
+    environment:
+      - "discovery.type=single-node"
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "xpack.security.enabled=false"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+      - ./scripts/init-es.sh:/usr/share/elasticsearch/bin/init-es.sh
+    healthcheck:
+      test: ["CMD-SHELL", "bash /usr/share/elasticsearch/bin/init-es.sh check"]
+      interval: 10s
+      timeout: 5s
+      retries: 12 # 12 * 10s = 120s (2 minutes)
+      start_period: 10s # Give ES some time to start up before first check
+    command: bash /usr/share/elasticsearch/bin/init-es.sh
+    restart: on-failure
+
+  # ==============================================
+  # GraphDB
+  # ==============================================
+  neo4j:
+    image: neo4j:5.26.5-enterprise
+    container_name: my-neo4j
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_apoc_export_file_enabled=true
+    volumes:
+      - neo4j-data:/data
+    profiles: ["neo4j"]
