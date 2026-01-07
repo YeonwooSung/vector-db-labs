@@ -5,7 +5,7 @@ description = "Utilizing Vector and Graph Databases for Advanced Data Management
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "elasticsearch>=8.0.0",
+    "elasticsearch>=8.0.0,<9.0.0",
     "langchain>=0.1.0",
     "langchain-anthropic>=0.1.0",
     "langchain-core>=0.1.0",
