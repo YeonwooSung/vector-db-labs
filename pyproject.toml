@@ -1,0 +1,13 @@
+[project]
+name = "vector-db-labs"
+version = "0.1.0"
+description = "Vector DB Labs"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "hn-comment-vector-search",
+    "vector_and_graph_db",
+]

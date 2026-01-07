@@ -1,7 +1,7 @@
 [project]
 name = "vector-and-graph-db"
 version = "0.1.0"
-description = "Add your description here"
+description = "Utilizing Vector and Graph Databases for Advanced Data Management"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
