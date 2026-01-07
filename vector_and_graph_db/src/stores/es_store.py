@@ -77,12 +77,14 @@ class ElasticsearchStore(BaseStore):
                 hosts=[self.config.url],
                 request_timeout=30
             )
-            # Test connection
-            if not self._client.ping():
+            # Test connection using info() which is more reliable in ES 8.x
+            try:
+                info = self._client.info()
+                logger.info(f"Connected to Elasticsearch at {self.config.url} (version: {info['version']['number']})")
+            except Exception as e:
                 raise ConnectionError(
-                    f"Cannot connect to Elasticsearch at {self.config.url}"
+                    f"Cannot connect to Elasticsearch at {self.config.url}: {str(e)}"
                 )
-            logger.info(f"Connected to Elasticsearch at {self.config.url}")
         return self._client
     
     def initialize(self) -> None:
