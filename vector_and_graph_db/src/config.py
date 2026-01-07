@@ -80,7 +80,7 @@ class LLMConfig:
     anthropic_model: str = "claude-sonnet-4-5-20250929"
     # Common
     temperature: float = 0.0
-    max_tokens: int = 4096
+    max_tokens: int = 8192
 
 
 @dataclass
