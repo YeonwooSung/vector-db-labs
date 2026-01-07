@@ -74,10 +74,10 @@ class LLMConfig:
     provider: LLMProvider = LLMProvider.GEMINI
     # Gemini
     gemini_api_key: Optional[str] = field(default_factory=lambda: os.getenv("GOOGLE_API_KEY"))
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-2.5-flash"
     # Anthropic
     anthropic_api_key: Optional[str] = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
-    anthropic_model: str = "claude-3-5-sonnet-20241022"
+    anthropic_model: str = "claude-sonnet-4-5-20250929"
     # Common
     temperature: float = 0.0
     max_tokens: int = 4096
