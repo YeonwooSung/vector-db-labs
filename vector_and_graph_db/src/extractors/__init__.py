@@ -65,7 +65,7 @@ class KnowledgeGraphExtractor:
         """
         self.config = config or LLMConfig()
         self._llm = None
-        
+
     @property
     def llm(self):
         """Lazy load the LLM based on configuration."""
@@ -127,85 +127,222 @@ class KnowledgeGraphExtractor:
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens
         )
-    
+
+
+    def _split_text_into_chunks(
+        self,
+        text: str,
+        max_length: int,
+        overlap: int = 200
+    ) -> List[str]:
+        """
+        Split text into overlapping chunks.
+        
+        Args:
+            text: Text to split
+            max_length: Maximum length of each chunk
+            overlap: Number of characters to overlap between chunks
+            
+        Returns:
+            List of text chunks
+        """
+        if len(text) <= max_length:
+            return [text]
+        
+        chunks = []
+        start = 0
+        
+        while start < len(text):
+            end = start + max_length
+            chunk = text[start:end]
+            chunks.append(chunk)
+            
+            # Move start forward, with overlap
+            start = end - overlap
+            
+            # Break if we've reached the end
+            if end >= len(text):
+                break
+        
+        return chunks
+
+    def _merge_knowledge_graphs(
+        self,
+        knowledge_graphs: List[KnowledgeGraph]
+    ) -> KnowledgeGraph:
+        """
+        Merge multiple knowledge graphs, combining duplicate entities.
+        
+        Args:
+            knowledge_graphs: List of knowledge graphs to merge
+            
+        Returns:
+            Merged knowledge graph
+        """
+        if not knowledge_graphs:
+            return KnowledgeGraph(
+                document_id="",
+                document_name=""
+            )
+        
+        if len(knowledge_graphs) == 1:
+            return knowledge_graphs[0]
+        
+        # Use first KG as base
+        merged_kg = knowledge_graphs[0]
+        
+        # Entity map: name -> Entity (for deduplication)
+        entity_map = {}
+        for entity in merged_kg.entities:
+            key = (entity.name.lower().strip(), entity.type.lower())
+            entity_map[key] = entity
+        
+        # Merge entities from remaining KGs
+        for kg in knowledge_graphs[1:]:
+            for entity in kg.entities:
+                key = (entity.name.lower().strip(), entity.type.lower())
+                
+                if key in entity_map:
+                    # Merge properties
+                    existing = entity_map[key]
+                    for prop_key, prop_value in entity.properties.items():
+                        if prop_key not in existing.properties:
+                            existing.properties[prop_key] = prop_value
+                else:
+                    # Add new entity
+                    entity_map[key] = entity
+                    merged_kg.entities.append(entity)
+        
+        # Merge relationships (with deduplication)
+        relationship_set = set()
+        merged_relationships = []
+        
+        for kg in knowledge_graphs:
+            for rel in kg.relationships:
+                # Create a unique key for the relationship
+                rel_key = (
+                    rel.source_entity.lower().strip(),
+                    rel.target_entity.lower().strip(),
+                    rel.relationship_type.upper()
+                )
+                
+                if rel_key not in relationship_set:
+                    relationship_set.add(rel_key)
+                    merged_relationships.append(rel)
+
+        merged_kg.relationships = merged_relationships
+
+        logger.info(
+            f"Merged {len(knowledge_graphs)} KGs into 1 with "
+            f"{len(merged_kg.entities)} unique entities and "
+            f"{len(merged_kg.relationships)} unique relationships"
+        )
+
+        return merged_kg
+
     def extract_from_document(
         self,
         document: Document,
-        max_text_length: int = 8000
+        max_text_length: int = 3000
     ) -> KnowledgeGraph:
         """
         Extract knowledge graph from a document.
+        For long documents, splits into chunks and merges results.
         
         Args:
             document: Document to process
-            max_text_length: Maximum text length to send to LLM
+            max_text_length: Maximum text length per chunk to send to LLM
             
         Returns:
             KnowledgeGraph object
         """
         logger.info(f"Extracting knowledge graph from: {document.name}")
-        
-        # Truncate text if too long
-        text = document.content[:max_text_length]
-        if len(document.content) > max_text_length:
-            logger.warning(
-                f"Document truncated from {len(document.content)} to {max_text_length} chars"
-            )
-        
-        # Call LLM
-        prompt = KG_EXTRACTION_PROMPT.format(text=text)
-        
-        try:
-            response = self.llm.invoke(prompt)
-            response_text = response.content if hasattr(response, 'content') else str(response)
-            
-            # Parse JSON response
-            kg_data = self._parse_response(response_text)
-            
-            # Convert to model objects
-            entities = []
-            for entity_data in kg_data.get("entities", []):
-                entity = Entity(
-                    name=entity_data.get("name", ""),
-                    type=entity_data.get("type", "Unknown"),
-                    properties=entity_data.get("properties", {}),
-                    document_id=document.id
-                )
-                entities.append(entity)
-            
-            relationships = []
-            for rel_data in kg_data.get("relationships", []):
-                relationship = Relationship(
-                    source_entity=rel_data.get("source", ""),
-                    target_entity=rel_data.get("target", ""),
-                    relationship_type=rel_data.get("type", "RELATED_TO"),
-                    properties=rel_data.get("properties", {}),
-                    document_id=document.id
-                )
-                relationships.append(relationship)
-            
-            kg = KnowledgeGraph(
-                document_id=document.id,
-                document_name=document.name,
-                entities=entities,
-                relationships=relationships
-            )
-            
+
+        # Split text into chunks if necessary
+        chunks = self._split_text_into_chunks(
+            document.content,
+            max_text_length,
+            overlap=200
+        )
+
+        if len(chunks) > 1:
             logger.info(
-                f"Extracted {len(entities)} entities and "
-                f"{len(relationships)} relationships from {document.name}"
+                f"Document split into {len(chunks)} chunks "
+                f"(original length: {len(document.content)} chars)"
             )
-            
-            return kg
-            
-        except Exception as e:
-            logger.error(f"Failed to extract KG from {document.name}: {e}")
-            # Return empty KG on failure
+
+        # Extract KG from each chunk
+        chunk_kgs = []
+        for i, chunk in enumerate(chunks, 1):
+            logger.info(f"Processing chunk {i}/{len(chunks)}")
+
+            # Call LLM
+            prompt = KG_EXTRACTION_PROMPT.format(text=chunk)
+
+            try:
+                response = self.llm.invoke(prompt)
+                response_text = response.content if hasattr(response, 'content') else str(response)
+
+                # Parse JSON response
+                kg_data = self._parse_response(response_text)
+
+                # Convert to model objects
+                entities = []
+                for entity_data in kg_data.get("entities", []):
+                    entity = Entity(
+                        name=entity_data.get("name", ""),
+                        type=entity_data.get("type", "Unknown"),
+                        properties=entity_data.get("properties", {}),
+                        document_id=document.id
+                    )
+                    entities.append(entity)
+
+                relationships = []
+                for rel_data in kg_data.get("relationships", []):
+                    relationship = Relationship(
+                        source_entity=rel_data.get("source", ""),
+                        target_entity=rel_data.get("target", ""),
+                        relationship_type=rel_data.get("type", "RELATED_TO"),
+                        properties=rel_data.get("properties", {}),
+                        document_id=document.id
+                    )
+                    relationships.append(relationship)
+
+                chunk_kg = KnowledgeGraph(
+                    document_id=document.id,
+                    document_name=document.name,
+                    entities=entities,
+                    relationships=relationships
+                )
+
+                chunk_kgs.append(chunk_kg)
+
+                logger.info(
+                    f"Chunk {i}: Extracted {len(entities)} entities and "
+                    f"{len(relationships)} relationships"
+                )
+
+            except Exception as e:
+                logger.error(f"Failed to extract KG from chunk {i} of {document.name}: {e}")
+                # Continue with other chunks
+                continue
+
+        # Merge all chunk KGs
+        if chunk_kgs:
+            merged_kg = self._merge_knowledge_graphs(chunk_kgs)
+            logger.info(
+                f"Final result for {document.name}: {len(merged_kg.entities)} entities and "
+                f"{len(merged_kg.relationships)} relationships"
+            )
+            return merged_kg
+        else:
+            # Return empty KG if all chunks failed
+            logger.error(f"All chunks failed for {document.name}")
             return KnowledgeGraph(
                 document_id=document.id,
                 document_name=document.name
             )
-    
+
     def _parse_response(self, response_text: str) -> dict:
         """Parse LLM response to extract JSON."""
         # Try to extract JSON from the response
@@ -216,14 +353,18 @@ class KnowledgeGraphExtractor:
                 return json.loads(json_match.group())
             except json.JSONDecodeError:
                 pass
-        
+
         # Try parsing the entire response as JSON
         try:
+            print("Attempting to parse entire response as JSON: ")
+            print(response_text)
+            print()
             return json.loads(response_text)
         except json.JSONDecodeError:
             logger.warning("Could not parse LLM response as JSON")
             return {"entities": [], "relationships": []}
-    
+
+
     def extract_from_documents(
         self,
         documents: List[Document],
