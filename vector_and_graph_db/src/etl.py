@@ -3,7 +3,9 @@ ETL Pipeline for processing PDF documents into vector, search, and graph databas
 """
 import logging
 from typing import Optional, List
-from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from .config import AppConfig, IndexType, LLMProvider
 from .models import Document, Chunk, KnowledgeGraph
