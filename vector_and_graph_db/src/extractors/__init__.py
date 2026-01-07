@@ -55,7 +55,7 @@ class KnowledgeGraphExtractor:
     Extracts knowledge graphs from documents using LLM.
     Supports Google Gemini and Anthropic Claude via LangChain.
     """
-    
+
     def __init__(self, config: Optional[LLMConfig] = None):
         """
         Initialize the knowledge graph extractor.
@@ -72,7 +72,7 @@ class KnowledgeGraphExtractor:
         if self._llm is None:
             self._llm = self._create_llm()
         return self._llm
-    
+
     def _create_llm(self):
         """Factory method to create the appropriate LLM."""
         if self.config.provider == LLMProvider.GEMINI:
@@ -81,7 +81,7 @@ class KnowledgeGraphExtractor:
             return self._create_anthropic_llm()
         else:
             raise ValueError(f"Unsupported LLM provider: {self.config.provider}")
-    
+
     def _create_gemini_llm(self):
         """Create Google Gemini LLM."""
         try:
@@ -91,12 +91,12 @@ class KnowledgeGraphExtractor:
                 "langchain-google-genai is required for Gemini. "
                 "Install it with: pip install langchain-google-genai"
             )
-        
+
         if not self.config.gemini_api_key:
             raise ValueError(
                 "GOOGLE_API_KEY environment variable is required for Gemini"
             )
-        
+
         logger.info(f"Using Gemini model: {self.config.gemini_model}")
         return ChatGoogleGenerativeAI(
             model=self.config.gemini_model,
@@ -104,7 +104,7 @@ class KnowledgeGraphExtractor:
             temperature=self.config.temperature,
             max_output_tokens=self.config.max_tokens
         )
-    
+
     def _create_anthropic_llm(self):
         """Create Anthropic Claude LLM."""
         try:
@@ -114,7 +114,7 @@ class KnowledgeGraphExtractor:
                 "langchain-anthropic is required for Claude. "
                 "Install it with: pip install langchain-anthropic"
             )
-        
+
         if not self.config.anthropic_api_key:
             raise ValueError(
                 "ANTHROPIC_API_KEY environment variable is required for Claude"
@@ -148,10 +148,10 @@ class KnowledgeGraphExtractor:
         """
         if len(text) <= max_length:
             return [text]
-        
+
         chunks = []
         start = 0
-        
+
         while start < len(text):
             end = start + max_length
             chunk = text[start:end]
@@ -163,7 +163,7 @@ class KnowledgeGraphExtractor:
             # Break if we've reached the end
             if end >= len(text):
                 break
-        
+
         return chunks
 
     def _merge_knowledge_graphs(
@@ -184,24 +184,24 @@ class KnowledgeGraphExtractor:
                 document_id="",
                 document_name=""
             )
-        
+
         if len(knowledge_graphs) == 1:
             return knowledge_graphs[0]
-        
+
         # Use first KG as base
         merged_kg = knowledge_graphs[0]
-        
+
         # Entity map: name -> Entity (for deduplication)
         entity_map = {}
         for entity in merged_kg.entities:
             key = (entity.name.lower().strip(), entity.type.lower())
             entity_map[key] = entity
-        
+
         # Merge entities from remaining KGs
         for kg in knowledge_graphs[1:]:
             for entity in kg.entities:
                 key = (entity.name.lower().strip(), entity.type.lower())
-                
+
                 if key in entity_map:
                     # Merge properties
                     existing = entity_map[key]
@@ -212,11 +212,11 @@ class KnowledgeGraphExtractor:
                     # Add new entity
                     entity_map[key] = entity
                     merged_kg.entities.append(entity)
-        
+
         # Merge relationships (with deduplication)
         relationship_set = set()
         merged_relationships = []
-        
+
         for kg in knowledge_graphs:
             for rel in kg.relationships:
                 # Create a unique key for the relationship

@@ -7,7 +7,7 @@ import logging
 from neo4j import GraphDatabase
 
 from . import BaseStore
-from ..models import Chunk, SearchResult, KnowledgeGraph, Entity, Relationship
+from ..models import Chunk, SearchResult, KnowledgeGraph
 from ..config import Neo4jConfig
 
 logger = logging.getLogger(__name__)
