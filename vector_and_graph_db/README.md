@@ -25,7 +25,7 @@ PDF Documents
                        ▼
               ┌────────────────┐
               │ Hybrid Search  │
-              │   (RRF/Weighted)│
+              │  (RRF/Weighted)│
               └────────────────┘
 ```
 
